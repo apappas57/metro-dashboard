@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metro Trains Victoria — Live Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: rgba(255,255,255,0.07);
+    --text: #e8edf5;
+    --muted: #6b7a99;
+    --accent: #3b82f6;
+    --good: #22c55e;
+    --warn: #f59e0b;
+    --bad: #ef4444;
+    --metro-yellow: #FFD700;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 4rem;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(10,14,26,0.95);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: var(--metro-yellow);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    font-size: 13px;
+    color: #000;
+    letter-spacing: -0.5px;
+  }
+  .logo-text { font-size: 15px; font-weight: 500; letter-spacing: 0.01em; }
+  .logo-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--good);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  #last-updated { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* Layout */
+  main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+  /* Section headers */
+  .section-label {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .card-full { grid-column: 1 / -1; }
+
+  /* Departure board */
+  .departure-table { width: 100%; border-collapse: collapse; }
+  .departure-table th {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0 0 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .departure-table td {
+    padding: 0.85rem 0;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .departure-table tr:last-child td { border-bottom: none; }
+  .line-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .departs-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--metro-yellow);
+  }
+  .platform-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .status-chip {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .status-chip.on-time { background: rgba(34,197,94,0.12); color: var(--good); }
+  .status-chip.delayed { background: rgba(239,68,68,0.12); color: var(--bad); }
+  .status-chip.works   { background: rgba(245,158,11,0.12); color: var(--warn); }
+
+  /* Line status grid */
+  .lines-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.6rem;
+  }
+  .line-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 0.75rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .line-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-good    { background: var(--good); }
+  .dot-disrupted { background: var(--bad); }
+  .dot-works   { background: var(--warn); }
+
+  /* Disruptions */
+  .disruption-list { display: flex; flex-direction: column; gap: 0.75rem; }
+  .disruption-item {
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    border-left: 3px solid;
+    background: var(--surface2);
+  }
+  .disruption-item.high   { border-color: var(--bad); }
+  .disruption-item.medium { border-color: var(--warn); }
+  .disruption-item.low    { border-color: var(--accent); }
+  .disruption-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .disruption-desc  { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .disruption-meta  { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: 'DM Mono', monospace; }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 768px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+  .stat-value { font-size: 28px; font-weight: 600; line-height: 1; }
+  .stat-sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .val-good { color: var(--good); }
+  .val-warn { color: var(--warn); }
+  .val-bad  { color: var(--bad); }
+
+  /* Mock badge */
+  .mock-banner {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    font-size: 13px;
+    color: var(--warn);
+    margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Loading */
+  .loading { color: var(--muted); font-size: 13px; padding: 1rem 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">MTM</div>
+    <div>
+      <div class="logo-text">Metro Trains Melbourne</div>
+      <div class="logo-sub">Network Dashboard</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div> Live</div>
+    <div id="last-updated">—</div>
+  </div>
+</header>
+
+<main>
+
+  <div id="mock-banner" class="mock-banner" style="display:none">
+    ⚠ Running on mock data — connect PTV API key to see live departures
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Lines operating</div>
+      <div class="stat-value val-good" id="stat-good">—</div>
+      <div class="stat-sub">of 15 metro lines</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Disruptions</div>
+      <div class="stat-value val-bad" id="stat-disruptions">—</div>
+      <div class="stat-sub">active alerts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Next departure</div>
+      <div class="stat-value" id="stat-next" style="color:var(--metro-yellow)">—</div>
+      <div class="stat-sub" id="stat-next-line">Flinders Street</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Network status</div>
+      <div class="stat-value" id="stat-status">—</div>
+      <div class="stat-sub" id="stat-status-sub">—</div>
+    </div>
+  </div>
+
+  <!-- Departures + disruptions -->
+  <div class="grid">
+    <div class="card card-full">
+      <div class="section-label">Next departures — Flinders Street</div>
+      <div id="departures-container">
+        <div class="loading">Loading departures...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Line status</div>
+      <div id="lines-container">
+        <div class="loading">Loading lines...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Disruptions &amp; alerts</div>
+      <div id="disruptions-container">
+        <div class="loading">Loading disruptions...</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const API = 'http://127.0.0.1:5000';
+
+  function statusClass(s) {
+    if (!s) return '';
+    const l = s.toLowerCase();
+    if (l.includes('delay') || l.includes('cancel')) return 'delayed';
+    if (l.includes('works') || l.includes('bus')) return 'works';
+    return 'on-time';
+  }
+
+  function renderDepartures(data) {
+    if (data.source === 'mock') {
+      document.getElementById('mock-banner').style.display = 'flex';
+    }
+    const deps = data.departures || [];
+    if (!deps.length) {
+      document.getElementById('departures-container').innerHTML = '<p class="loading">No departures found.</p>';
+      return;
+    }
+    // Update next departure stat
+    document.getElementById('stat-next').textContent = deps[0].departs;
+    document.getElementById('stat-next-line').textContent = deps[0].line + ' line';
+
+    let html = `<table class="departure-table">
+      <thead><tr>
+        <th>Line</th>
+        <th>Destination</th>
+        <th>Departs</th>
+        <th>Platform</th>
+        <th>Status</th>
+      </tr></thead><tbody>`;
+    deps.forEach(d => {
+      const sc = statusClass(d.status);
+      html += `<tr>
+        <td><span class="line-pill">${d.line}</span></td>
+        <td>${d.destination}</td>
+        <td><span class="departs-time">${d.departs}</span></td>
+        <td><span class="platform-badge">${d.platform}</span></td>
+        <td><span class="status-chip ${sc}">${d.status}</span></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('departures-container').innerHTML = html;
+  }
+
+  function renderLines(data) {
+    const lines = data.lines || [];
+    const good = lines.filter(l => l.status === 'good').length;
+    const disrupted = lines.filter(l => l.status === 'disrupted').length;
+    const works = lines.filter(l => l.status === 'works').length;
+
+    document.getElementById('stat-good').textContent = good;
+    if (disrupted > 0) {
+      document.getElementById('stat-status').textContent = 'Disrupted';
+      document.getElementById('stat-status').className = 'stat-value val-bad';
+      document.getElementById('stat-status-sub').textContent = disrupted + ' line(s) affected';
+    } else {
+      document.getElementById('stat-status').textContent = 'Good';
+      document.getElementById('stat-status').className = 'stat-value val-good';
+      document.getElementById('stat-status-sub').textContent = 'All lines running';
+    }
+
+    let html = '<div class="lines-grid">';
+    lines.forEach(l => {
+      const dotClass = l.status === 'good' ? 'dot-good' : l.status === 'disrupted' ? 'dot-disrupted' : 'dot-works';
+      html += `<div class="line-item">
+        <span>${l.name}</span>
+        <span class="line-status-dot ${dotClass}"></span>
+      </div>`;
+    });
+    html += '</div>';
+    document.getElementById('lines-container').innerHTML = html;
+  }
+
+  function renderDisruptions(data) {
+    const disruptions = data.disruptions || [];
+    document.getElementById('stat-disruptions').textContent = disruptions.length;
+
+    if (!disruptions.length) {
+      document.getElementById('disruptions-container').innerHTML = '<p class="loading">No active disruptions.</p>';
+      return;
+    }
+    let html = '<div class="disruption-list">';
+    disruptions.forEach(d => {
+      html += `<div class="disruption-item ${d.severity}">
+        <div class="disruption-title">${d.title}</div>
+        <div class="disruption-desc">${d.description}</div>
+        <div class="disruption-meta">Updated ${d.updated}</div>
+      </div>`;
+    });
+    html += '</div>';
+    document.getElementById('disruptions-container').innerHTML = html;
+  }
+
+  async function fetchAll() {
+    try {
+      const [deps, lines, disruptions] = await Promise.all([
+        fetch(`${API}/api/departures`).then(r => r.json()),
+        fetch(`${API}/api/lines`).then(r => r.json()),
+        fetch(`${API}/api/disruptions`).then(r => r.json()),
+      ]);
+      renderDepartures(deps);
+      renderLines(lines);
+      renderDisruptions(disruptions);
+      const now = new Date();
+      document.getElementById('last-updated').textContent =
+        'Updated ' + now.toLocaleTimeString('en-AU', {hour: '2-digit', minute: '2-digit'});
+    } catch(e) {
+      console.error(e);
+      document.getElementById('departures-container').innerHTML =
+        '<p class="loading">⚠ Could not connect to backend. Is Flask running?</p>';
+    }
+  }
+
+  fetchAll();
+  setInterval(fetchAll, 30000);
+</script>
+
+</body>
+</html>
