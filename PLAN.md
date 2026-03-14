@@ -19,3 +19,6 @@ departure data, service disruptions, line status, and network insights.
 - [x] Phase 2 — Python backend (Flask proxy for PTV API)
 - [x] Phase 3 — Frontend dashboard (index.html)
 - [ ] Phase 4 — Deploy to GitHub Pages + Render
+
+## Current status
+Phase 4 in progress — deploying frontend to GitHub Pages, backend to Render.
