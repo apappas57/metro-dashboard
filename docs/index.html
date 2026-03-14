@@ -221,7 +221,90 @@
     margin-bottom: 1.5rem;
     display: flex; align-items: center; gap: 8px;
   }
+/* Weather bar */
+  .weather-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .weather-main {
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .weather-temp {
+    font-size: 28px; font-weight: 600; line-height: 1;
+  }
+  .weather-condition {
+    font-size: 14px; color: var(--muted);
+  }
+  .weather-detail {
+    font-size: 13px; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  .weather-impact {
+    margin-left: auto;
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .impact-low    { background: rgba(34,197,94,0.12);  color: var(--good); }
+  .impact-medium { background: rgba(245,158,11,0.12); color: var(--warn); }
+  .impact-high   { background: rgba(239,68,68,0.12);  color: var(--bad);  }
 
+  /* Patronage chart */
+  .patronage-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 80px;
+    margin-top: 1rem;
+  }
+  .p-bar-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    flex: 1; gap: 4px;
+  }
+  .p-bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: opacity 0.2s;
+    min-height: 4px;
+  }
+  .p-bar.quiet    { background: var(--good); }
+  .p-bar.moderate { background: var(--accent); }
+  .p-bar.busy     { background: var(--warn); }
+  .p-bar.peak     { background: var(--bad); }
+  .p-bar.current  { outline: 2px solid white; outline-offset: 1px; }
+  .p-label {
+    font-size: 9px;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .patronage-legend {
+    display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--muted);
+  }
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 2px;
+  }
+  .patronage-tip {
+    margin-top: 0.75rem;
+    font-size: 13px;
+    color: var(--muted);
+    padding: 0.6rem 0.75rem;
+    background: var(--surface2);
+    border-radius: 6px;
+    border-left: 3px solid var(--accent);
+  }
   /* Loading */
   .loading { color: var(--muted); font-size: 13px; padding: 1rem 0; }
 </style>
@@ -240,9 +323,24 @@
     <div class="live-badge"><div class="live-dot"></div> Live</div>
     <div id="last-updated">—</div>
   </div>
+  <div class="card card-full">
+      <div class="section-label">Best time to travel — Flinders Street crowding</div>
+      <div id="patronage-container"><div class="loading">Loading...</div></div>
+    </div>
 </header>
 
 <main>
+
+  <!-- Weather bar -->
+  <div class="weather-bar" id="weather-bar">
+    <div class="weather-main">
+      <span class="weather-temp" id="w-temp">—</span>
+      <span class="weather-condition" id="w-condition">Loading weather...</span>
+    </div>
+    <span class="weather-detail" id="w-rain">— mm rain</span>
+    <span class="weather-detail" id="w-wind">— km/h wind</span>
+    <span class="weather-impact" id="w-impact"></span>
+  </div>
 
   <div id="mock-banner" class="mock-banner" style="display:none">
     ⚠ Running on mock data — connect PTV API key to see live departures
@@ -318,17 +416,11 @@
       document.getElementById('departures-container').innerHTML = '<p class="loading">No departures found.</p>';
       return;
     }
-    // Update next departure stat
     document.getElementById('stat-next').textContent = deps[0].departs;
     document.getElementById('stat-next-line').textContent = deps[0].line + ' line';
-
     let html = `<table class="departure-table">
       <thead><tr>
-        <th>Line</th>
-        <th>Destination</th>
-        <th>Departs</th>
-        <th>Platform</th>
-        <th>Status</th>
+        <th>Line</th><th>Destination</th><th>Departs</th><th>Platform</th><th>Status</th>
       </tr></thead><tbody>`;
     deps.forEach(d => {
       const sc = statusClass(d.status);
@@ -348,8 +440,6 @@
     const lines = data.lines || [];
     const good = lines.filter(l => l.status === 'good').length;
     const disrupted = lines.filter(l => l.status === 'disrupted').length;
-    const works = lines.filter(l => l.status === 'works').length;
-
     document.getElementById('stat-good').textContent = good;
     if (disrupted > 0) {
       document.getElementById('stat-status').textContent = 'Disrupted';
@@ -360,14 +450,10 @@
       document.getElementById('stat-status').className = 'stat-value val-good';
       document.getElementById('stat-status-sub').textContent = 'All lines running';
     }
-
     let html = '<div class="lines-grid">';
     lines.forEach(l => {
       const dotClass = l.status === 'good' ? 'dot-good' : l.status === 'disrupted' ? 'dot-disrupted' : 'dot-works';
-      html += `<div class="line-item">
-        <span>${l.name}</span>
-        <span class="line-status-dot ${dotClass}"></span>
-      </div>`;
+      html += `<div class="line-item"><span>${l.name}</span><span class="line-status-dot ${dotClass}"></span></div>`;
     });
     html += '</div>';
     document.getElementById('lines-container').innerHTML = html;
@@ -376,7 +462,6 @@
   function renderDisruptions(data) {
     const disruptions = data.disruptions || [];
     document.getElementById('stat-disruptions').textContent = disruptions.length;
-
     if (!disruptions.length) {
       document.getElementById('disruptions-container').innerHTML = '<p class="loading">No active disruptions.</p>';
       return;
@@ -393,16 +478,69 @@
     document.getElementById('disruptions-container').innerHTML = html;
   }
 
+  function renderWeather(data) {
+    if (data.error) return;
+    document.getElementById('w-temp').textContent = data.temp + '°';
+    document.getElementById('w-condition').textContent = data.condition + ' · Melbourne';
+    document.getElementById('w-rain').textContent = data.rain + ' mm rain';
+    document.getElementById('w-wind').textContent = data.wind + ' km/h wind';
+    const imp = document.getElementById('w-impact');
+    imp.textContent = data.impact_msg;
+    imp.className = 'weather-impact impact-' + data.impact;
+  }
+
+  function renderPatronage(data) {
+    const hours = data.hours || [];
+    const current = data.current_hour;
+    const isWeekend = data.is_weekend;
+
+    let tip = '';
+    const now = new Date().getHours();
+    if (now >= 7 && now <= 9) {
+      tip = '🚆 You\'re in the morning peak. Consider travelling after 9:30am for a much quieter ride.';
+    } else if (now >= 16 && now <= 18) {
+      tip = '🚆 Evening peak in progress. Trains will be quieter after 7pm.';
+    } else if (now >= 10 && now <= 15) {
+      tip = '✅ Great time to travel — off-peak, trains are comfortably quiet right now.';
+    } else {
+      tip = '✅ Off-peak period — comfortable travel conditions expected.';
+    }
+    if (isWeekend) tip = '✅ Weekend schedule — generally quieter across the network all day.';
+
+    let html = '<div class="patronage-bars">';
+    hours.forEach(h => {
+      const height = Math.max(4, h.index * 0.8);
+      const isCurrent = h.hour === current;
+      html += `<div class="p-bar-wrap">
+        <div class="p-bar ${h.rating}${isCurrent ? ' current' : ''}" style="height:${height}px" title="${h.label}: ${h.index}% capacity"></div>
+        <span class="p-label">${isCurrent ? '▲' : h.label.replace('am','').replace('pm','')}</span>
+      </div>`;
+    });
+    html += '</div>';
+    html += `<div class="patronage-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--good)"></div>Quiet</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Moderate</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div>Busy</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--bad)"></div>Peak</div>
+    </div>`;
+    html += `<div class="patronage-tip">${tip}</div>`;
+    document.getElementById('patronage-container').innerHTML = html;
+  }
+
   async function fetchAll() {
     try {
-      const [deps, lines, disruptions] = await Promise.all([
+      const [deps, lines, disruptions, weather, patronage] = await Promise.all([
         fetch(`${API}/api/departures`).then(r => r.json()),
         fetch(`${API}/api/lines`).then(r => r.json()),
         fetch(`${API}/api/disruptions`).then(r => r.json()),
+        fetch(`${API}/api/weather`).then(r => r.json()),
+        fetch(`${API}/api/patronage`).then(r => r.json()),
       ]);
       renderDepartures(deps);
       renderLines(lines);
       renderDisruptions(disruptions);
+      renderWeather(weather);
+      renderPatronage(patronage);
       const now = new Date();
       document.getElementById('last-updated').textContent =
         'Updated ' + now.toLocaleTimeString('en-AU', {hour: '2-digit', minute: '2-digit'});
